@@ -28,7 +28,7 @@
 // @grant              none
 // @license            MIT
 // @noframes
-// @homepage           https://github.com/youssbehh/yt-freedom
+// @homepage           https://github.com/youssbehh/youtube-freedom
 // ==/UserScript==
 
 
