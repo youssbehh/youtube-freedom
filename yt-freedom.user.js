@@ -10,7 +10,7 @@
 // @name:ja            YouTube Freedom – 広告をスキップ & 年齢制限を回避 & アンチAdblock
 // @name:zh-CN         YouTube Freedom – 跳过广告 & 绕过年龄限制 & 反Adblock
 // @namespace          https://github.com/youssbehh
-// @version            1.0.0
+// @version            1.0.1
 // @description        Automatically skips YouTube ads, removes banners, bypasses age restrictions and hides anti-adblock popup. No adblocker required.
 // @description:fr     Saute automatiquement les pubs YouTube, supprime les bannières, contourne les restrictions d'âge et cache l'avertissement anti-adblock. Aucun bloqueur requis.
 // @description:es     Omite automáticamente anuncios de YouTube, elimina banners, evita restricciones de edad y oculta advertencia anti-adblock. No requiere bloqueador.
@@ -37,14 +37,18 @@
 
     // --- Supprimer le popup anti-adblock ---
     function removeAntiAdblockPopup() {
-        const popup = document.querySelector('tp-yt-paper-dialog #dialog');
-        const overlay = document.querySelector('tp-yt-paper-dialog');
-        if (popup || overlay) {
-            console.log("[Userscript] Popup anti-adblock détecté → suppression.");
-            if (overlay) overlay.remove();
-            if (popup) popup.remove();
-            document.body.style.overflow = "auto";
-        }
+        const dialogs = document.querySelectorAll('tp-yt-paper-dialog');
+        dialogs.forEach(dlg => {
+            // Cherche des boutons/lien typiques du popup anti-adblock
+            const hasAdblockKeywords = dlg.querySelector('a[href*="support.google.com"]') 
+                                    || dlg.innerHTML.match(/allow\s*ads|adblock/i);
+    
+            if (hasAdblockKeywords) {
+                console.log("[Userscript] Popup anti-adblock détecté → suppression.");
+                dlg.remove();
+                document.body.style.overflow = "auto";
+            }
+        });
     }
 
     // --- Bypass restriction d'âge ---
