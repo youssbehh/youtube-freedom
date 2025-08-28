@@ -10,7 +10,7 @@
 // @name:ja            YouTube Freedom – 広告をスキップ & 年齢制限を回避 & アンチAdblock
 // @name:zh-CN         YouTube Freedom – 跳过广告 & 绕过年龄限制 & 反Adblock
 // @namespace          https://github.com/youssbehh
-// @version            1.0.1
+// @version            1.0.5
 // @description        Automatically skips YouTube ads, removes banners, bypasses age restrictions and hides anti-adblock popup. No adblocker required.
 // @description:fr     Saute automatiquement les pubs YouTube, supprime les bannières, contourne les restrictions d'âge et cache l'avertissement anti-adblock. Aucun bloqueur requis.
 // @description:es     Omite automáticamente anuncios de YouTube, elimina banners, evita restricciones de edad y oculta advertencia anti-adblock. No requiere bloqueador.
@@ -29,6 +29,8 @@
 // @license            MIT
 // @noframes
 // @homepage           https://github.com/youssbehh/youtube-freedom
+// @downloadURL https://update.greasyfork.org/scripts/546375/YouTube%20Freedom%20%E2%80%93%20Skip%20Ads%20%20Bypass%20Age%20%20Anti-Adblock.user.js
+// @updateURL https://update.greasyfork.org/scripts/546375/YouTube%20Freedom%20%E2%80%93%20Skip%20Ads%20%20Bypass%20Age%20%20Anti-Adblock.meta.js
 // ==/UserScript==
 
 
@@ -40,13 +42,19 @@
         const dialogs = document.querySelectorAll('tp-yt-paper-dialog');
         dialogs.forEach(dlg => {
             // Cherche des boutons/lien typiques du popup anti-adblock
-            const hasAdblockKeywords = dlg.querySelector('a[href*="support.google.com"]') 
+            const hasAdblockKeywords = dlg.querySelector('a[href*="support.google.com"]')
                                     || dlg.innerHTML.match(/allow\s*ads|adblock/i);
-    
             if (hasAdblockKeywords) {
-                console.log("[Userscript] Popup anti-adblock détecté → suppression.");
                 dlg.remove();
+                const overlay = document.querySelector('tp-yt-iron-overlay-backdrop');
+                if (overlay) {
+                    console.log("[Userscript] Overlay tp-yt-iron-overlay-backdrop détecté → suppression.");
+                    overlay.remove();
+                }
+                // Restaurer l'interaction et le défilement
                 document.body.style.overflow = "auto";
+                document.documentElement.style.overflow = "auto";
+                document.body.style.pointerEvents = "auto";
             }
         });
     }
@@ -57,7 +65,6 @@
         const player = document.querySelector('video');
 
         if (ageDialog) {
-            console.log("[Userscript] Restriction d'âge détectée → suppression.");
             ageDialog.remove();
         }
 
@@ -66,7 +73,6 @@
             const isAgeBlocked = !!document.querySelector('ytd-player .ytd-watch-flexy[ad-blocked]');
             const videoId = new URLSearchParams(window.location.search).get("v");
             if (isAgeBlocked && videoId) {
-                console.log("[Userscript] Vidéo bloquée → redirection embed.");
                 window.location.href = `https://www.youtube-nocookie.com/embed/${videoId}?autoplay=1`;
             }
         }
@@ -74,16 +80,14 @@
 
     // --- Skip pubs YouTube ---
     function skipAds() {
-        const adVideo = document.querySelector('.ad-showing video');
+        const adVideo = document.querySelector('.ad-showing video, ytd-pip-container video, ytd-miniplayer-player-container video');
         if (adVideo && adVideo.duration) {
             adVideo.currentTime = adVideo.duration;
             adVideo.muted = true;
-            console.log("[Userscript] Pub vidéo détectée → skip.");
         }
         const skipBtn = document.querySelector('.ytp-ad-skip-button, .ytp-ad-skip-button-modern');
         if (skipBtn) {
             skipBtn.click();
-            console.log("[Userscript] Bouton Skip Ad cliqué.");
         }
     }
 
@@ -109,7 +113,6 @@
         const onPause = () => {
             if (video.currentTime <= 5) { // seulement si c'est dans les 5 premières secondes
                 video.play().then(() => {
-                console.log("[Userscript] Vidéo relancée automatiquement (pause dans les 5 premières secondes).");
             }).catch(err => {
                 console.warn("[Userscript] Impossible de play :", err);
             });
@@ -120,16 +123,17 @@
     video.addEventListener('pause', onPause);
     }
 
-    // --- MutationObserver ---
+    let debounceTimeout;
     const observer = new MutationObserver(() => {
-        removeAntiAdblockPopup();
-        bypassAgeRestriction();
-        skipAds();
-        removeAdBanners();
-        keepVideoPlayingEarly();
+        clearTimeout(debounceTimeout);
+        debounceTimeout = setTimeout(() => {
+            removeAntiAdblockPopup();
+            bypassAgeRestriction();
+            skipAds();
+            removeAdBanners();
+            keepVideoPlayingEarly();
+        }, 100);
     });
 
     observer.observe(document.body, { childList: true, subtree: true });
-
-    console.log("[Userscript] Script actif : détection en temps réel.");
 })();
