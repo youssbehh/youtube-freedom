@@ -103,7 +103,8 @@
         const selectors = [
             '#player-ads', '#masthead-ad', '.ytp-ad-overlay-container',
             '.ytp-ad-image-overlay', '.yt-mealbar-promo-renderer',
-            '.ytp-featured-product', 'ytd-merch-shelf-renderer', 'ytd-in-feed-ad-layout-renderer'
+            '.ytp-featured-product', 'ytd-merch-shelf-renderer', 'ytd-in-feed-ad-layout-renderer',
+            'ytd-engagement-panel-section-list-renderer'
         ];
         selectors.forEach(sel => {
             document.querySelectorAll(sel).forEach(el => el.remove());
