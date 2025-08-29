@@ -10,7 +10,7 @@
 // @name:ja            YouTube Freedom – 広告をスキップ & 年齢制限を回避 & アンチAdblock
 // @name:zh-CN         YouTube Freedom – 跳过广告 & 绕过年龄限制 & 反Adblock
 // @namespace          https://github.com/youssbehh
-// @version            1.0.7
+// @version            1.0.8
 // @description        Automatically skips YouTube ads, removes banners, bypasses age restrictions and hides anti-adblock popup. No adblocker required.
 // @description:fr     Saute automatiquement les pubs YouTube, supprime les bannières, contourne les restrictions d'âge et cache l'avertissement anti-adblock. Aucun bloqueur requis.
 // @description:es     Omite automáticamente anuncios de YouTube, elimina banners, evita restricciones de edad y oculta advertencia anti-adblock. No requiere bloqueador.
@@ -54,14 +54,6 @@
         if (backdrop) {
             backdrop.remove();
             document.body.style.overflow = "auto";
-        }
-    }
-
-    function restoreScrollIfNeeded() {
-        const overlay = document.querySelector('tp-yt-iron-overlay-backdrop.opened');
-        if (!overlay) {
-            document.documentElement.style.overflow = '';
-            document.body.style.overflow = '';
         }
     }
 
@@ -139,7 +131,6 @@
             skipAds();
             removeAdBanners();
             keepVideoPlayingEarly();
-            restoreScrollIfNeeded();
         }, 100);
     });
 
