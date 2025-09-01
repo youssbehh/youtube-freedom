@@ -10,7 +10,7 @@
 // @name:ja            YouTube Freedom – 広告をスキップ & 年齢制限を回避 & アンチAdblock
 // @name:zh-CN         YouTube Freedom – 跳过广告 & 绕过年龄限制 & 反Adblock
 // @namespace          https://github.com/youssbehh
-// @version            1.0.8
+// @version            1.0.9
 // @description        Automatically skips YouTube ads, removes banners, bypasses age restrictions and hides anti-adblock popup. No adblocker required.
 // @description:fr     Saute automatiquement les pubs YouTube, supprime les bannières, contourne les restrictions d'âge et cache l'avertissement anti-adblock. Aucun bloqueur requis.
 // @description:es     Omite automáticamente anuncios de YouTube, elimina banners, evita restricciones de edad y oculta advertencia anti-adblock. No requiere bloqueador.
@@ -96,10 +96,16 @@
             '#player-ads', '#masthead-ad', '.ytp-ad-overlay-container',
             '.ytp-ad-image-overlay', '.yt-mealbar-promo-renderer',
             '.ytp-featured-product', 'ytd-merch-shelf-renderer', 'ytd-in-feed-ad-layout-renderer',
-            'ytd-engagement-panel-section-list-renderer'
+            '.tp-yt-iron-a11y-announcer'
+            //'ytd-engagement-panel-section-list-renderer'
         ];
         selectors.forEach(sel => {
-            document.querySelectorAll(sel).forEach(el => el.remove());
+            document.querySelectorAll(sel).forEach(el => {
+                // Vérifie si l'élément est vraiment une pub avant de le supprimer
+                if (/ad|advertisement|sponsored|promo/i.test(el.innerText) || el.querySelector('[class*="ad"], [class*="sponsor"]')) {
+                    el.remove();
+                }
+            });
         });
     }
 
@@ -110,7 +116,7 @@
         video.dataset.keepPlayingEarly = "true";
 
         const onPause = () => {
-            if (video.currentTime <= 5) {
+            if (video.currentTime <= 3) {
                 video.play().then(() => {
             }).catch(err => {
                 console.warn("[Userscript] Impossible de play :", err);
