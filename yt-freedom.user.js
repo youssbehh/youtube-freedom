@@ -10,7 +10,7 @@
 // @name:ja            YouTube Freedom – 広告をスキップ & 年齢制限を回避 & アンチAdblock
 // @name:zh-CN         YouTube Freedom – 跳过广告 & 绕过年龄限制 & 反Adblock
 // @namespace          https://github.com/youssbehh
-// @version            1.0.9
+// @version            1.1.0
 // @description        Automatically skips YouTube ads, removes banners, bypasses age restrictions and hides anti-adblock popup. No adblocker required.
 // @description:fr     Saute automatiquement les pubs YouTube, supprime les bannières, contourne les restrictions d'âge et cache l'avertissement anti-adblock. Aucun bloqueur requis.
 // @description:es     Omite automáticamente anuncios de YouTube, elimina banners, evita restricciones de edad y oculta advertencia anti-adblock. No requiere bloqueador.
@@ -38,36 +38,67 @@
     'use strict';
 
    function removeAntiAdblockPopup() {
-        document.querySelectorAll('tp-yt-paper-dialog').forEach(dlg => {
-            const isAdblockWarning =
-                dlg.querySelector('a[href*="support.google.com"]') ||
-                /adblock|allow\s*ads|blocker/i.test(dlg.innerText);
+        const selectors = [
+            'tp-yt-paper-dialog',
+            'ytd-popup-container',
+            '.ytd-consent-bump-v2-lightbox',
+            '[class*="dialog"][class*="popup"]',
+            '[role="dialog"]',
+            '.ytp-popup',
+            '.video-ads.ytp-ad-module'
+        ];
 
-            if (isAdblockWarning) {
-                console.log("[Userscript] Popup anti-adblock détecté → suppression.");
-                dlg.remove();
-                document.body.style.overflow = "auto";
-            }
+        selectors.forEach(sel => {
+            document.querySelectorAll(sel).forEach(dlg => {
+                const isAdblockWarning = (
+                    dlg.querySelector('a[href*="support.google.com"]') ||
+                    /adblock|allow\s+ads|blocker|advertising|turn\s+off/i.test(dlg.textContent) ||
+                    dlg.querySelector('[class*="adblock"], [class*="blocker"]') ||
+                    dlg.classList.contains('video-ads')
+                );
+                if (isAdblockWarning) {
+                    dlg.remove();
+                    document.body.style.overflow = 'auto';
+                }
+            });
         });
 
-        const backdrop = document.querySelector('tp-yt-iron-overlay-backdrop.opened');
-        if (backdrop) {
-            backdrop.remove();
-            document.body.style.overflow = "auto";
+        const backdrops = [
+            'tp-yt-iron-overlay-backdrop.opened',
+            '.ytp-ad-overlay-container',
+            '[class*="backdrop"][class*="opened"]',
+            '[class*="overlay"][style*="display: block"]',
+            '.ytp-ad-module'
+        ];
+        backdrops.forEach(sel => {
+            document.querySelectorAll(sel).forEach(el => {
+                el.remove();
+                document.body.style.overflow = 'auto';
+            });
+        });
+
+        const player = document.querySelector('#movie_player, .html5-video-player');
+        if (player) {
+            if (player.style.display === 'none' || player.classList.contains('ad-showing')) {
+                player.style.display = 'block';
+                player.classList.remove('ad-showing', 'ad-interrupting');
+            }
+            const video = player.querySelector('video');
+            if (video && video.paused) {
+                video.play();
+            }
         }
-    }
+   }
 
     function bypassAgeRestriction() {
-        const ageDialog = document.querySelector('ytd-enforcement-message-view-model');
+        const ageDialog = document.querySelector('ytd-enforcement-message-view-model, [class*="age-restriction"]');
         const player = document.querySelector('video');
-
         if (ageDialog) {
             ageDialog.remove();
         }
-
         if (player && player.paused && player.readyState === 0) {
-            const isAgeBlocked = !!document.querySelector('ytd-player .ytd-watch-flexy[ad-blocked]');
-            const videoId = new URLSearchParams(window.location.search).get("v");
+            const isAgeBlocked = document.querySelector('ytd-player .ytd-watch-flexy[ad-blocked], [class*="age-restricted"]');
+            const videoId = new URLSearchParams(window.location.search).get('v');
             if (isAgeBlocked && videoId) {
                 window.location.href = `https://www.youtube-nocookie.com/embed/${videoId}?autoplay=1`;
             }
@@ -75,34 +106,55 @@
     }
 
     function skipAds() {
-        const pipMode = document.querySelector('ytd-pip-container, ytd-miniplayer-player-container');
-        const adVideo = document.querySelector('.ad-showing video');
+        const adVideo = document.querySelector('.ad-showing video, .video-ads video, .video-ads ytp-ad-module, ytd-miniplayer .video-ads video');
         if (adVideo && adVideo.duration) {
             adVideo.currentTime = adVideo.duration;
             adVideo.muted = true;
         }
-        const skipBtn = document.querySelector('.ytp-ad-skip-button, .ytp-ad-skip-button-modern');
-        if (skipBtn) {
-            skipBtn.click();
-        }
 
-        if (document.querySelector('.ad-showing')) {
-            setTimeout(skipAds, 500);
+        const skipButtons = [
+            '.ytp-ad-skip-button',
+            '.ytp-ad-skip-button-modern',
+            '.ytp-skip-ad-button',
+            'ytd-miniplayer .ytp-ad-skip-button',
+            '[class*="skip"][class*="ad"]'
+        ];
+        skipButtons.forEach(sel => {
+            document.querySelectorAll(sel).forEach(btn => {
+                btn.click();
+            });
+        });
+
+        const adOverlays = document.querySelectorAll('.ytp-ad-overlay-container, .ytp-ad-image-overlay, .video-ads.ytp-ad-module');
+        adOverlays.forEach(overlay => {
+            overlay.remove();
+        });
+
+        if (document.querySelector('.ad-showing, .video-ads')) {
+            setTimeout(skipAds, 200);
         }
     }
 
     function removeAdBanners() {
         const selectors = [
-            '#player-ads', '#masthead-ad', '.ytp-ad-overlay-container',
-            '.ytp-ad-image-overlay', '.yt-mealbar-promo-renderer',
-            '.ytp-featured-product', 'ytd-merch-shelf-renderer', 'ytd-in-feed-ad-layout-renderer',
-            '.tp-yt-iron-a11y-announcer'
-            //'ytd-engagement-panel-section-list-renderer'
+            '#player-ads',
+            '#masthead-ad',
+            '.ytp-ad-overlay-container',
+            '.ytp-ad-image-overlay',
+            '.yt-mealbar-promo-renderer',
+            '.ytp-featured-product',
+            'ytd-merch-shelf-renderer',
+            'ytd-in-feed-ad-layout-renderer',
+            '.tp-yt-iron-a11y-announcer',
+            'ytd-ad-slot-renderer',
+            '[class*="sponsored"], [class*="ad-slot"]'
         ];
+
         selectors.forEach(sel => {
             document.querySelectorAll(sel).forEach(el => {
-                // Vérifie si l'élément est vraiment une pub avant de le supprimer
-                if (/ad|advertisement|sponsored|promo/i.test(el.innerText) || el.querySelector('[class*="ad"], [class*="sponsor"]')) {
+                if (/ad|advertisement|sponsored|promo/i.test(el.textContent) ||
+                    el.querySelector('[class*="ad"], [class*="sponsor"]') ||
+                    el.classList.contains('video-ads')) {
                     el.remove();
                 }
             });
@@ -112,20 +164,16 @@
     function keepVideoPlayingEarly() {
         const video = document.querySelector('video');
         if (!video || video.dataset.keepPlayingEarly) return;
-
-        video.dataset.keepPlayingEarly = "true";
+        video.dataset.keepPlayingEarly = 'true';
 
         const onPause = () => {
             if (video.currentTime <= 3) {
-                video.play().then(() => {
-            }).catch(err => {
-                console.warn("[Userscript] Impossible de play :", err);
-            });
-        }
-        video.removeEventListener('pause', onPause);
-    };
+                video.play();
+            }
+        };
 
-    video.addEventListener('pause', onPause);
+        video.removeEventListener('pause', onPause);
+        video.addEventListener('pause', onPause);
     }
 
     let debounceTimeout;
@@ -137,8 +185,20 @@
             skipAds();
             removeAdBanners();
             keepVideoPlayingEarly();
-        }, 100);
+        }, 50);
     });
 
-    observer.observe(document.body, { childList: true, subtree: true });
+    observer.observe(document.body, { childList: true, subtree: true, attributes: true });
+
+    removeAntiAdblockPopup();
+    bypassAgeRestriction();
+    skipAds();
+    removeAdBanners();
+    keepVideoPlayingEarly();
+
+    setInterval(() => {
+        removeAntiAdblockPopup();
+        skipAds();
+        removeAdBanners();
+    }, 500);
 })();
