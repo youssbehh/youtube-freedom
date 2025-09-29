@@ -10,7 +10,7 @@
 // @name:ja            YouTube Freedom – 広告をスキップ & 年齢制限を回避 & アンチAdblock
 // @name:zh-CN         YouTube Freedom – 跳过广告 & 绕过年龄限制 & 反Adblock
 // @namespace          https://github.com/youssbehh
-// @version            1.1.2
+// @version            1.2.0
 // @description        Automatically skips YouTube ads, removes banners, bypasses age restrictions and hides anti-adblock popup. No adblocker required.
 // @description:fr     Saute automatiquement les pubs YouTube, supprime les bannières, contourne les restrictions d'âge et cache l'avertissement anti-adblock. Aucun bloqueur requis.
 // @description:es     Omite automáticamente anuncios de YouTube, elimina banners, evita restricciones de edad y oculta advertencia anti-adblock. No requiere bloqueador.
@@ -35,165 +35,140 @@
 
 
 (function() {
-    'use strict';
+        'use strict';
 
-   function removeAntiAdblockPopup() {
-        const selectors = [
-            'tp-yt-paper-dialog',
-            'ytd-popup-container',
-            '.ytd-consent-bump-v2-lightbox',
-            '[class*="dialog"][class*="popup"]',
-            '[role="dialog"]',
-            '.ytp-popup',
-            '.video-ads.ytp-ad-module'
-        ];
+        let lastAdSkippedTime = 0;
+        const SKIP_COOLDOWN = 500;
 
-        selectors.forEach(sel => {
-            document.querySelectorAll(sel).forEach(dlg => {
-                const isAdblockWarning = (
-                    dlg.querySelector('a[href*="support.google.com"]') ||
-                    /adblock|allow\s+ads|blocker|advertising|turn\s+off/i.test(dlg.textContent) ||
-                    dlg.querySelector('[class*="adblock"], [class*="blocker"]') ||
-                    dlg.classList.contains('video-ads')
-                );
-                if (isAdblockWarning) {
-                    dlg.remove();
-                    document.body.style.overflow = 'auto';
+        function skipVideoAds() {
+            const player = document.querySelector('#movie_player, .html5-video-player');
+            if (!player) {
+                console.log('Lecteur vidéo non trouvé');
+                return;
+            }
+
+            const isAdPlaying = player.classList.contains('ad-showing') ||
+                                player.classList.contains('ad-interrupting') ||
+                                document.querySelector('.video-ads, .ytp-ad-module, .ytp-ad-text, .ytp-ad-preview');
+            if (!isAdPlaying) {
+                return;
+            }
+
+            const currentTime = Date.now();
+            if (currentTime - lastAdSkippedTime < SKIP_COOLDOWN) {
+                console.log('Skip ignoré : délai de refroidissement actif');
+                return;
+            }
+
+            const video = player.querySelector('video');
+            if (video && video.duration) {
+                const isLikelyAd = video.duration < 60 ||
+                                  document.querySelector('.ytp-ad-text, .ytp-ad-skip-button-container, .ytp-ad-preview');
+                if (isLikelyAd && !video.ended) {
+                    video.currentTime = video.duration;
+                    video.muted = true;
+                    lastAdSkippedTime = currentTime;
+                    console.log('Publicité vidéo avancée à la fin');
+                } else {
+                    console.log('Vidéo détectée comme contenu principal, aucun skip');
+                    return;
                 }
-            });
-        });
+            }
 
-        const backdrops = [
-            'tp-yt-iron-overlay-backdrop.opened',
-            '.ytp-ad-overlay-container',
-            '[class*="backdrop"][class*="opened"]',
-            '[class*="overlay"][style*="display: block"]',
-            '.ytp-ad-module'
-        ];
-        backdrops.forEach(sel => {
-            document.querySelectorAll(sel).forEach(el => {
-                el.remove();
-                document.body.style.overflow = 'auto';
-            });
-        });
+            const skipButtonSelectors = [
+                '.ytp-ad-skip-button',
+                '.ytp-ad-skip-button-modern',
+                '.ytp-skip-ad-button',
+                'button.ytp-ad-skip-button',
+                '.ytp-ad-overlay-close-button'
+            ];
 
-        const player = document.querySelector('#movie_player, .html5-video-player');
-        if (player) {
-            if (player.style.display === 'none' || player.classList.contains('ad-showing')) {
-                player.style.display = 'block';
+            skipButtonSelectors.forEach(selector => {
+                const buttons = document.querySelectorAll(selector);
+                buttons.forEach(button => {
+                    if (button.offsetParent !== null) {
+                        button.click();
+                        console.log(`Bouton cliqué: ${selector}`);
+                    }
+                });
+            });
+
+            if (player.classList.contains('ad-showing') || player.classList.contains('ad-interrupting')) {
                 player.classList.remove('ad-showing', 'ad-interrupting');
+                console.log('Classes de publicité supprimées du lecteur');
+            }
+
+            if (video && video.paused && isLikelyAd) {
+                video.play().catch(() => console.log('Erreur lors de la reprise après publicité'));
+                console.log('Lecture forcée après skip de publicité');
             }
         }
-   }
 
-    function bypassAgeRestriction() {
-        const ageDialog = document.querySelector('ytd-enforcement-message-view-model, [class*="age-restriction"]');
-        const player = document.querySelector('video');
-        if (ageDialog) {
-            ageDialog.remove();
-        }
-        if (player && player.paused && player.readyState === 0) {
-            const isAgeBlocked = document.querySelector('ytd-player .ytd-watch-flexy[ad-blocked], [class*="age-restricted"]');
-            const videoId = new URLSearchParams(window.location.search).get('v');
-            if (isAgeBlocked && videoId) {
-                window.location.href = `https://www.youtube-nocookie.com/embed/${videoId}?autoplay=1`;
-            }
-        }
-    }
+        function removeAdBanners() {
+            const adSelectors = [
+                'ytd-in-feed-ad-layout-renderer',
+                'ytd-ad-slot-renderer',
+                '#player-ads',
+                '#masthead-ad',
+                '.ytp-featured-product',
+                'ytd-companion-slot-renderer',
+                'ytd-player-legacy-desktop-watch-ads-renderer'
+            ];
 
-    function skipAds() {
-        const adVideo = document.querySelector('.ad-showing video, .video-ads video, .video-ads ytp-ad-module, ytd-miniplayer .video-ads video');
-        if (adVideo && adVideo.duration) {
-            adVideo.currentTime = adVideo.duration;
-            adVideo.muted = true;
-        }
-
-        const skipButtons = [
-            '.ytp-ad-skip-button',
-            '.ytp-ad-skip-button-modern',
-            '.ytp-skip-ad-button',
-            'ytd-miniplayer .ytp-ad-skip-button',
-            '[class*="skip"][class*="ad"]'
-        ];
-        skipButtons.forEach(sel => {
-            document.querySelectorAll(sel).forEach(btn => {
-                btn.click();
+            adSelectors.forEach(selector => {
+                const elements = document.querySelectorAll(selector);
+                elements.forEach(element => {
+                    if (element && element.parentNode) {
+                        element.parentNode.removeChild(element);
+                        console.log(`Publicité in-feed/bannière supprimée: ${selector}`);
+                    }
+                });
             });
-        });
 
-        const adOverlays = document.querySelectorAll('.ytp-ad-overlay-container, .ytp-ad-image-overlay, .video-ads.ytp-ad-module');
-        adOverlays.forEach(overlay => {
-            overlay.remove();
-        });
-
-        if (document.querySelector('.ad-showing, .video-ads')) {
-            setTimeout(skipAds, 200);
-        }
-    }
-
-    function removeAdBanners() {
-        const selectors = [
-            '#player-ads',
-            '#masthead-ad',
-            '.ytp-ad-overlay-container',
-            '.ytp-ad-image-overlay',
-            '.yt-mealbar-promo-renderer',
-            '.ytp-featured-product',
-            'ytd-merch-shelf-renderer',
-            'ytd-in-feed-ad-layout-renderer',
-            '.tp-yt-iron-a11y-announcer',
-            'ytd-ad-slot-renderer',
-            '[class*="sponsored"], [class*="ad-slot"]'
-        ];
-
-        selectors.forEach(sel => {
-            document.querySelectorAll(sel).forEach(el => {
-                if (/ad|advertisement|sponsored|promo/i.test(el.textContent) ||
-                    el.querySelector('[class*="ad"], [class*="sponsor"]') ||
-                    el.classList.contains('video-ads')) {
-                    el.remove();
+            const relatedItems = document.querySelectorAll('#related ytd-rich-item-renderer');
+            relatedItems.forEach(item => {
+                if (item.querySelector('ytd-ad-slot-renderer, [class*="ad"], [class*="sponsored"]') && item.parentNode) {
+                    item.parentNode.removeChild(item);
+                    console.log('Élément sponsorisé supprimé dans #related');
                 }
             });
-        });
-    }
+        }
 
-    function keepVideoPlayingEarly() {
-        const video = document.querySelector('video');
-        if (!video || video.dataset.keepPlayingEarly) return;
-        video.dataset.keepPlayingEarly = 'true';
-
-        const onPause = () => {
-            if (video.currentTime <= 3) {
-                video.play();
+        function handleAds() {
+            try {
+                skipVideoAds();
+                removeAdBanners();
+            } catch (error) {
+                console.log('Erreur lors de la gestion des publicités:', error);
             }
-        };
+        }
 
-        video.removeEventListener('pause', onPause);
-        video.addEventListener('pause', onPause);
-    }
+        function setupMutationObserver() {
+            const observer = new MutationObserver((mutations) => {
+                if (mutations.length > 50) {
+                    console.log('Trop de mutations détectées, exécution ignorée');
+                    return;
+                }
+                handleAds();
+            });
 
-    let debounceTimeout;
-    const observer = new MutationObserver(() => {
-        clearTimeout(debounceTimeout);
-        debounceTimeout = setTimeout(() => {
-            removeAntiAdblockPopup();
-            bypassAgeRestriction();
-            skipAds();
-            removeAdBanners();
-        }, 50);
-    });
+            observer.observe(document.body, {
+                childList: true,
+                subtree: true,
+                attributes: false
+            });
+            console.log('Observateur de mutations activé pour détecter les publicités');
+        }
 
-    observer.observe(document.body, { childList: true, subtree: true, attributes: true });
+        window.addEventListener('load', () => {
+            console.log('Page chargée, démarrage de la gestion des publicités');
+            handleAds();
+            setupMutationObserver();
+        });
 
-    removeAntiAdblockPopup();
-    bypassAgeRestriction();
-    skipAds();
-    removeAdBanners();
-    keepVideoPlayingEarly();
+        handleAds();
 
-    setInterval(() => {
-        removeAntiAdblockPopup();
-        skipAds();
-        removeAdBanners();
-    }, 500);
-})();
+        setInterval(() => {
+            handleAds();
+        }, 1000);
+    })();
