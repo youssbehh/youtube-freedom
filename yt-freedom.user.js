@@ -10,7 +10,7 @@
 // @name:ja            YouTube Freedom – 広告をスキップ & 年齢制限を回避 & アンチAdblock
 // @name:zh-CN         YouTube Freedom – 跳过广告 & 绕过年龄限制 & 反Adblock
 // @namespace          https://github.com/youssbehh
-// @version            1.2.0
+// @version            1.2.2
 // @description        Automatically skips YouTube ads, removes banners, bypasses age restrictions and hides anti-adblock popup. No adblocker required.
 // @description:fr     Saute automatiquement les pubs YouTube, supprime les bannières, contourne les restrictions d'âge et cache l'avertissement anti-adblock. Aucun bloqueur requis.
 // @description:es     Omite automáticamente anuncios de YouTube, elimina banners, evita restricciones de edad y oculta advertencia anti-adblock. No requiere bloqueador.
@@ -43,7 +43,6 @@
         function skipVideoAds() {
             const player = document.querySelector('#movie_player, .html5-video-player');
             if (!player) {
-                console.log('Lecteur vidéo non trouvé');
                 return;
             }
 
@@ -56,7 +55,6 @@
 
             const currentTime = Date.now();
             if (currentTime - lastAdSkippedTime < SKIP_COOLDOWN) {
-                console.log('Skip ignoré : délai de refroidissement actif');
                 return;
             }
 
@@ -68,9 +66,7 @@
                     video.currentTime = video.duration;
                     video.muted = true;
                     lastAdSkippedTime = currentTime;
-                    console.log('Publicité vidéo avancée à la fin');
                 } else {
-                    console.log('Vidéo détectée comme contenu principal, aucun skip');
                     return;
                 }
             }
@@ -88,19 +84,16 @@
                 buttons.forEach(button => {
                     if (button.offsetParent !== null) {
                         button.click();
-                        console.log(`Bouton cliqué: ${selector}`);
                     }
                 });
             });
 
             if (player.classList.contains('ad-showing') || player.classList.contains('ad-interrupting')) {
                 player.classList.remove('ad-showing', 'ad-interrupting');
-                console.log('Classes de publicité supprimées du lecteur');
             }
 
             if (video && video.paused && isLikelyAd) {
                 video.play().catch(() => console.log('Erreur lors de la reprise après publicité'));
-                console.log('Lecture forcée après skip de publicité');
             }
         }
 
@@ -120,7 +113,6 @@
                 elements.forEach(element => {
                     if (element && element.parentNode) {
                         element.parentNode.removeChild(element);
-                        console.log(`Publicité in-feed/bannière supprimée: ${selector}`);
                     }
                 });
             });
@@ -129,7 +121,6 @@
             relatedItems.forEach(item => {
                 if (item.querySelector('ytd-ad-slot-renderer, [class*="ad"], [class*="sponsored"]') && item.parentNode) {
                     item.parentNode.removeChild(item);
-                    console.log('Élément sponsorisé supprimé dans #related');
                 }
             });
         }
@@ -143,13 +134,43 @@
             }
         }
 
+        function bypassAgeRestriction() {
+                const currentUrl = window.location.href;
+                const ageRestrictionMessage = document.querySelector('.ytp-error-content, .ytp-error, [aria-label*="age-restricted"]');
+                if (ageRestrictionMessage && currentUrl.includes('watch?v=')) {
+                    const videoId = currentUrl.match(/v=([^&]+)/)?.[1];
+                    if (videoId) {
+                        const newUrl = `https://www.youtube-nocookie.com/embed/${videoId}`;
+                        window.location.href = newUrl;
+                    } else {
+                        console.log('ID de la vidéo non trouvé dans l\'URL');
+                    }
+                } else if (currentUrl.includes('/v/')) {
+                    const player = document.querySelector('#movie_player, .html5-video-player');
+                    const video = player?.querySelector('video');
+                    if (video && video.paused) {
+                        video.play().catch(() => console.log('Erreur lors de la tentative de lecture'));
+                        }
+                }
+        }
+
+        function handleAdsAndAgeRestrictions() {
+                try {
+                    skipVideoAds();
+                    removeAdBanners();
+                    bypassAgeRestriction();
+                } catch (error) {
+                    console.log('Erreur lors de la gestion des publicités ou restrictions d\'âge:', error);
+                }
+        }
+
         function setupMutationObserver() {
             const observer = new MutationObserver((mutations) => {
                 if (mutations.length > 50) {
-                    console.log('Trop de mutations détectées, exécution ignorée');
                     return;
                 }
                 handleAds();
+                handleAdsAndAgeRestrictions();
             });
 
             observer.observe(document.body, {
@@ -163,12 +184,15 @@
         window.addEventListener('load', () => {
             console.log('Page chargée, démarrage de la gestion des publicités');
             handleAds();
+            handleAdsAndAgeRestrictions();
             setupMutationObserver();
         });
 
         handleAds();
+        handleAdsAndAgeRestrictions();
 
         setInterval(() => {
             handleAds();
+            handleAdsAndAgeRestrictions();
         }, 1000);
     })();
